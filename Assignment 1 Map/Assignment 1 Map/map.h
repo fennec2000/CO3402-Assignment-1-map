@@ -28,7 +28,7 @@ public:
 	unsigned int Size() { return arraySize; }				// returns the size of the pre allocated array
 	bool SetSize(unsigned int newSize);						// set size of the array
 	bool ForceSetSize(unsigned int newSize);				// unsafe does not check for data loss
-	const V &Get(const K &key);
+	const V &Get(const K &key);								// Gets the Value from the key
 };
 
 template <typename K, typename V>
@@ -64,7 +64,7 @@ inline bool map<K, V>::Add(const K &key, const V &value)
 	}
 
 	// find next avalable spot
-	while (mp_Key[insertPoint] != *emptyKey)
+	while (!(mp_Key[insertPoint] == *emptyKey))
 	{
 		if (insertPoint >= arraySize)
 			insertPoint = 0;
@@ -104,13 +104,13 @@ inline bool map<K, V>::ForceSetSize(unsigned int newSize)
 
 	for (int i = 0, j = 0; i < loopCheck && j < currentArraySize; ++i)
 	{
-		if (mp_Key[i] != *emptyKey)
+		if (!(mp_Key[i] == *emptyKey))
 		{
 			// rehash and re-enter into new arrays
 			unsigned int newHash = MapHash(mp_Key[i]) % newSize;
 
 			// find next space
-			while (newKey[newHash] != *emptyKey)
+			while (!(newKey[newHash] == *emptyKey))
 			{
 				if (newHash >= newSize)
 					newHash = 0;
