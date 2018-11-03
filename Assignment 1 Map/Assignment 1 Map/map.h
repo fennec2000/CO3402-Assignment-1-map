@@ -10,7 +10,7 @@ inline long MapHash(T given)
 }
 
 template <typename K, typename V>
-class map
+class Map
 {
 private:
 	K* emptyKey = new K;				// value of an empty key
@@ -21,8 +21,31 @@ private:
 	V* mp_Value = nullptr;				// pointer to the value array
 
 public:
-	map();													// constructor for setup
-	virtual ~map();											// deconstructor to clean up memory
+
+	class Iterator
+	{
+		K* m_ptr;
+	public:
+		Iterator(K* ptr) { m_ptr = ptr; }
+		Iterator operator++();		// prefix ++
+		Iterator operator++(int);	// postfix ++
+		const K& operator*() { return *m_ptr; }
+		const K* operator->() { return m_ptr; }
+		bool operator==(const Iterator& rhs) { return m_ptr == rhs.m_ptr; }
+	};
+
+	inline Iterator Iterator::operator++()
+	{
+		return *this;
+	}
+
+	inline Iterator Iterator::operator++(int)
+	{
+		return *this;
+	}
+
+	Map();													// constructor for setup
+	virtual ~Map();											// deconstructor to clean up memory
 	bool Add(const K &key, const V &value);					// adds a new key pair value
 	unsigned int DataSize() { return currentArraySize; }	// returns the number of data inserted into the array
 	unsigned int Size() { return arraySize; }				// returns the size of the pre allocated array
@@ -32,14 +55,14 @@ public:
 };
 
 template <typename K, typename V>
-inline map<K, V>::map()
+inline Map<K, V>::Map()
 {
 	mp_Key = new K[arraySize];
 	mp_Value = new V[arraySize];
 }
 
 template<typename K, typename V>
-inline map<K, V>::~map()
+inline Map<K, V>::~Map()
 {
 	delete emptyKey;
 	delete emptyValue;
@@ -48,7 +71,7 @@ inline map<K, V>::~map()
 }
 
 template<typename K, typename V>
-inline bool map<K, V>::Add(const K &key, const V &value)
+inline bool Map<K, V>::Add(const K &key, const V &value)
 {
 	// check if key exists
 	long insertPoint = MapHash(key) % arraySize;
@@ -84,7 +107,7 @@ inline bool map<K, V>::Add(const K &key, const V &value)
 }
 
 template<typename K, typename V>
-inline bool map<K, V>::SetSize(unsigned int newSize)
+inline bool Map<K, V>::SetSize(unsigned int newSize)
 {
 	if (newSize <= arraySize)
 		return false;
@@ -93,7 +116,7 @@ inline bool map<K, V>::SetSize(unsigned int newSize)
 }
 
 template<typename K, typename V>
-inline bool map<K, V>::ForceSetSize(unsigned int newSize)
+inline bool Map<K, V>::ForceSetSize(unsigned int newSize)
 {
 	// make new arrays
 	K* newKey = new K[newSize];
@@ -137,7 +160,7 @@ inline bool map<K, V>::ForceSetSize(unsigned int newSize)
 }
 
 template<typename K, typename V>
-inline const V &map<K, V>::Get(const K &key)
+inline const V &Map<K, V>::Get(const K &key)
 {
 	unsigned int findHash = MapHash(key) % arraySize;
 
@@ -158,4 +181,3 @@ inline const V &map<K, V>::Get(const K &key)
 
 	return *emptyValue;
 }
-
