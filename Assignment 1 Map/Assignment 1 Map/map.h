@@ -1,6 +1,8 @@
 #pragma once
 using namespace std;
 
+class Iterator;
+
 // custom hashing algorithm, converts any data type to a long
 template<typename T>
 inline long MapHash(T given)
@@ -13,12 +15,11 @@ template <typename K, typename V>
 class Map
 {
 private:
-	K* emptyKey = new K;				// value of an empty key
-	V* emptyValue = new V;				// value of an empty value
 	unsigned int arraySize = 10;		// current array size
 	unsigned int currentArraySize = 0;	// number of values stored in the array
 	K* mp_Key = nullptr;				// pointer to the key array
 	V* mp_Value = nullptr;				// pointer to the value array
+	bool* mp_Taken = nullptr;			// pointer to the array that stores if value is used in array
 
 public:
 
@@ -27,22 +28,18 @@ public:
 		K* m_ptr;
 	public:
 		Iterator(K* ptr) { m_ptr = ptr; }
-		Iterator operator++();		// prefix ++
-		Iterator operator++(int);	// postfix ++
+		Iterator operator++()		// prefix ++
+		{
+			return *this;
+		}
+		Iterator operator++(int)	// postfix ++
+		{
+			return *this;
+		}
 		const K& operator*() { return *m_ptr; }
 		const K* operator->() { return m_ptr; }
 		bool operator==(const Iterator& rhs) { return m_ptr == rhs.m_ptr; }
 	};
-
-	inline Iterator Iterator::operator++()
-	{
-		return *this;
-	}
-
-	inline Iterator Iterator::operator++(int)
-	{
-		return *this;
-	}
 
 	Map();													// constructor for setup
 	virtual ~Map();											// deconstructor to clean up memory
@@ -51,7 +48,7 @@ public:
 	unsigned int Size() { return arraySize; }				// returns the size of the pre allocated array
 	bool SetSize(unsigned int newSize);						// set size of the array
 	bool ForceSetSize(unsigned int newSize);				// unsafe does not check for data loss
-	const V &Get(const K &key);								// Gets the Value from the key
+	V* Get(const K &key);								// Gets the Value from the key
 };
 
 template <typename K, typename V>
@@ -59,15 +56,17 @@ inline Map<K, V>::Map()
 {
 	mp_Key = new K[arraySize];
 	mp_Value = new V[arraySize];
+	mp_Taken = new bool[arraySize];
+	for (int i = 0; i < arraySize; ++i)
+		mp_Taken[i] = false;
 }
 
 template<typename K, typename V>
 inline Map<K, V>::~Map()
 {
-	delete emptyKey;
-	delete emptyValue;
 	delete[] mp_Key;
 	delete[] mp_Value;
+	delete[] mp_Taken;
 }
 
 template<typename K, typename V>
@@ -87,7 +86,7 @@ inline bool Map<K, V>::Add(const K &key, const V &value)
 	}
 
 	// find next avalable spot
-	while (!(mp_Key[insertPoint] == *emptyKey))
+	while (mp_Taken[insertPoint])
 	{
 		if (insertPoint >= arraySize)
 			insertPoint = 0;
@@ -102,6 +101,7 @@ inline bool Map<K, V>::Add(const K &key, const V &value)
 	// insert
 	mp_Key[insertPoint] = key;
 	mp_Value[insertPoint] = value;
+	mp_Taken[insertPoint] = true;
 	++currentArraySize;
 	return true;
 }
@@ -121,19 +121,22 @@ inline bool Map<K, V>::ForceSetSize(unsigned int newSize)
 	// make new arrays
 	K* newKey = new K[newSize];
 	V* newValue = new V[newSize];
+	bool* newTaken = new bool[newSize];
+	for (int i = 0; i < newSize; ++i)
+		newTaken[i] = false;
 
 	// go through the old array and get all data
 	int loopCheck = (arraySize < newSize ? arraySize : newSize);
 
 	for (int i = 0, j = 0; i < loopCheck && j < currentArraySize; ++i)
 	{
-		if (!(mp_Key[i] == *emptyKey))
+		if (mp_Taken[i])
 		{
 			// rehash and re-enter into new arrays
 			unsigned int newHash = MapHash(mp_Key[i]) % newSize;
 
 			// find next space
-			while (!(newKey[newHash] == *emptyKey))
+			while (newTaken[newHash])
 			{
 				if (newHash >= newSize)
 					newHash = 0;
@@ -143,6 +146,7 @@ inline bool Map<K, V>::ForceSetSize(unsigned int newSize)
 
 			newKey[newHash] = mp_Key[i];
 			newValue[newHash] = mp_Value[i];
+			newTaken[newHash] = true;
 			++j;
 		}
 	}
@@ -150,17 +154,19 @@ inline bool Map<K, V>::ForceSetSize(unsigned int newSize)
 	// delete old arrays
 	delete[] mp_Key;
 	delete[] mp_Value;
+	delete[] mp_Taken;
 
 	// set new data
 	mp_Key = newKey;
 	mp_Value = newValue;
+	mp_Taken = newTaken;
 	arraySize = newSize;
 
 	return true;
 }
 
 template<typename K, typename V>
-inline const V &Map<K, V>::Get(const K &key)
+inline V* Map<K, V>::Get(const K &key)
 {
 	unsigned int findHash = MapHash(key) % arraySize;
 
@@ -169,15 +175,15 @@ inline const V &Map<K, V>::Get(const K &key)
 	{
 		// if its there
 		if (mp_Key[findHash] == key)
-			return mp_Value[findHash];
+			return &mp_Value[findHash];
 		// if its not there
-		if (mp_Key[findHash] == *emptyKey)
-			return *emptyValue;
+		if (!mp_Taken[findHash])
+			return nullptr;
 		// something else go to next
 		++findHash;
 		if (findHash >= arraySize)
 			findHash = 0;
 	}
 
-	return *emptyValue;
+	return nullptr;
 }
