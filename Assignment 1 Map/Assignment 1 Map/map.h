@@ -1,107 +1,117 @@
 #pragma once
+#include <utility>
 using namespace std;
-
-// custom hashing algorithm, converts any data type to a long
-template<typename T>
-inline long MapHash(T given)
-{
-	const long result = reinterpret_cast<long&>(given);
-	return result * result;		// squared to decrease cashe misses
-}
 
 template <typename K, typename V>
 class Map
 {
 private:
-	K* emptyKey = new K;				// value of an empty key
-	V* emptyValue = new V;				// value of an empty value
+	struct SData
+	{
+		K key;
+		V value;
+	};
+
 	unsigned int arraySize = 10;		// current array size
 	unsigned int currentArraySize = 0;	// number of values stored in the array
-	K* mp_Key = nullptr;				// pointer to the key array
-	V* mp_Value = nullptr;				// pointer to the value array
+	SData* mp_Data;
+
+	pair<bool, unsigned int> FindInArray(const K& key, unsigned int start, unsigned int end);
 
 public:
 
 	class Iterator
 	{
-		K* m_ptr;
+	private:
+		SData* data;
 	public:
-		Iterator(K* ptr) { m_ptr = ptr; }
-		Iterator operator++();		// prefix ++
-		Iterator operator++(int);	// postfix ++
-		const K& operator*() { return *m_ptr; }
-		const K* operator->() { return m_ptr; }
-		bool operator==(const Iterator& rhs) { return m_ptr == rhs.m_ptr; }
+		Iterator(SData* data) : data(data) {}
+		Iterator operator++()		// prefix ++
+		{
+			Iterator x = *this;
+			++data;
+			return x;
+		}
+		Iterator operator++(int)	// postfix ++
+		{
+			++data;
+			return *this;
+		}
+		
+		auto operator*() { return make_pair(data->key, data->value); }
+		auto operator->() { return &make_pair(data->key, data->value); }
+		bool operator==(const Iterator& rhs) { return data == rhs.data; }
+		bool operator!=(const Iterator& rhs) { return data != rhs.data; }
 	};
 
-	inline Iterator Iterator::operator++()
-	{
-		return *this;
-	}
-
-	inline Iterator Iterator::operator++(int)
-	{
-		return *this;
-	}
-
-	Map();													// constructor for setup
-	virtual ~Map();											// deconstructor to clean up memory
-	bool Add(const K &key, const V &value);					// adds a new key pair value
-	unsigned int DataSize() { return currentArraySize; }	// returns the number of data inserted into the array
-	unsigned int Size() { return arraySize; }				// returns the size of the pre allocated array
-	bool SetSize(unsigned int newSize);						// set size of the array
-	bool ForceSetSize(unsigned int newSize);				// unsafe does not check for data loss
-	const V &Get(const K &key);								// Gets the Value from the key
+	Map();															// constructor
+	~Map();															// deconstructor
+	bool Add(const K &key, const V &value);							// adds a new key pair value
+	unsigned int DataSize() { return currentArraySize; }			// returns the number of data inserted into the array
+	unsigned int Size() { return arraySize; }						// returns the size of the pre allocated array
+	bool SetSize(unsigned int newSize);								// set size of the array
+	bool ForceSetSize(unsigned int newSize);						// unsafe does not check for data loss
+	V* Get(const K &key);											// Gets the Value from the key
+	Iterator Begin() { return Iterator(mp_Data); }					// Iterator start
+	Iterator End() { return Iterator(mp_Data + currentArraySize); }	// iterator end
 };
+
+template<typename K, typename V>
+inline pair<bool, unsigned int> Map<K, V>::FindInArray(const K& key, unsigned int start, unsigned int end)
+{
+	unsigned int mid = 0;
+	if (end >= start && end != -1)
+	{
+		// check mid
+		mid = start + (end - start) / 2;
+		if (mp_Data[mid].key == key)
+			return pair<bool, unsigned int>(true, mid);
+
+		// recursion
+		if (key < mp_Data[mid].key)
+			return FindInArray(key, start, mid - 1);
+		else
+			return FindInArray(key, mid + 1, end);
+	}
+
+	return pair<bool, unsigned int>(false, start);
+}
 
 template <typename K, typename V>
 inline Map<K, V>::Map()
 {
-	mp_Key = new K[arraySize];
-	mp_Value = new V[arraySize];
+	mp_Data = new SData[arraySize];
 }
 
 template<typename K, typename V>
 inline Map<K, V>::~Map()
 {
-	delete emptyKey;
-	delete emptyValue;
-	delete[] mp_Key;
-	delete[] mp_Value;
+	delete[] mp_Data;
 }
 
 template<typename K, typename V>
 inline bool Map<K, V>::Add(const K &key, const V &value)
 {
 	// check if key exists
-	long insertPoint = MapHash(key) % arraySize;
-	if (key == mp_Key[insertPoint])
+ 	auto result = FindInArray(key, 0, currentArraySize-1);
+	if (result.first)
 		return false;
 
 	// check if array is big enough
-	if (currentArraySize >= arraySize * 0.75f)
+	if (currentArraySize >= arraySize)
 	{
 		// resize
 		ForceSetSize(2 * arraySize);
-		insertPoint = MapHash(key) % arraySize;
+		// find position again
+		result = FindInArray(key, 0, currentArraySize-1);
 	}
 
-	// find next avalable spot
-	while (!(mp_Key[insertPoint] == *emptyKey))
-	{
-		if (insertPoint >= arraySize)
-			insertPoint = 0;
-		else
-			++insertPoint;
-
-		// check again if key exists
-		if (key == mp_Key[insertPoint])
-			return false;
-	}
+	// move data over 1
+	memmove(&mp_Data[result.second + 1], &mp_Data[result.second], sizeof(SData) * (currentArraySize - result.second));
 
 	// insert
-	mp_Key[insertPoint] = key;
-	mp_Value[insertPoint] = value;
+	mp_Data[result.second].key = key;
+	mp_Data[result.second].value = value;
 	++currentArraySize;
 	return true;
 }
@@ -119,65 +129,27 @@ template<typename K, typename V>
 inline bool Map<K, V>::ForceSetSize(unsigned int newSize)
 {
 	// make new arrays
-	K* newKey = new K[newSize];
-	V* newValue = new V[newSize];
+	SData* newData = new SData[newSize];
 
-	// go through the old array and get all data
-	int loopCheck = (arraySize < newSize ? arraySize : newSize);
-
-	for (int i = 0, j = 0; i < loopCheck && j < currentArraySize; ++i)
-	{
-		if (!(mp_Key[i] == *emptyKey))
-		{
-			// rehash and re-enter into new arrays
-			unsigned int newHash = MapHash(mp_Key[i]) % newSize;
-
-			// find next space
-			while (!(newKey[newHash] == *emptyKey))
-			{
-				if (newHash >= newSize)
-					newHash = 0;
-				else
-					++newHash;
-			}
-
-			newKey[newHash] = mp_Key[i];
-			newValue[newHash] = mp_Value[i];
-			++j;
-		}
-	}
+	// copy data to new array
+	memcpy(newData, mp_Data, sizeof(SData) * arraySize);
 
 	// delete old arrays
-	delete[] mp_Key;
-	delete[] mp_Value;
+	delete[] mp_Data;
 
 	// set new data
-	mp_Key = newKey;
-	mp_Value = newValue;
+	mp_Data = newData;
 	arraySize = newSize;
 
 	return true;
 }
 
 template<typename K, typename V>
-inline const V &Map<K, V>::Get(const K &key)
+inline V* Map<K, V>::Get(const K &key)
 {
-	unsigned int findHash = MapHash(key) % arraySize;
-
-	// check each value in array - do not check more than the array size
-	for(int i = 0; i < arraySize; ++i)
-	{
-		// if its there
-		if (mp_Key[findHash] == key)
-			return mp_Value[findHash];
-		// if its not there
-		if (mp_Key[findHash] == *emptyKey)
-			return *emptyValue;
-		// something else go to next
-		++findHash;
-		if (findHash >= arraySize)
-			findHash = 0;
-	}
-
-	return *emptyValue;
+	auto result = FindInArray(key, 0, currentArraySize-1);
+	if (result.first)
+		return &mp_Data[result.second].value;
+	else
+		return nullptr;
 }
