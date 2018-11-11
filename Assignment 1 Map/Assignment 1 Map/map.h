@@ -65,7 +65,7 @@ public:
 	// Capacity
 	unsigned int Size() { return currentArraySize; }	// returns the number of data inserted into the array
 	unsigned int MaxSize() { return arraySize; }		// returns the size of the pre allocated array
-	bool Empty() { return !currentArraySize; }		// returne if the array has no data in it
+	bool Empty() { return !currentArraySize; }			// returne if the array has no data in it
 	bool SetSize(unsigned int newSize);					// set size of the array
 	bool ForceSetSize(unsigned int newSize);			// unsafe does not check for data loss
 
@@ -104,7 +104,7 @@ template <typename K, typename V>
 inline Map<K, V>::Map()
 {
 	mp_Data = new SData[arraySize];
-	m_is_trivially_copyable = false; // (is_trivially_copyable<K>::value && is_trivially_copyable<V>::value) ? true : false;
+	m_is_trivially_copyable = (is_trivially_copyable<K>::value && is_trivially_copyable<V>::value) ? true : false;
 }
 
 template<typename K, typename V>
@@ -123,7 +123,7 @@ inline Map<K, V>::Map(const Map & m)
 	{
 		// must copy via loop instead of memcpy for not TriviallyCopyable data
 		// slower but must be used to prevent leaks
-		for (int i = 0; i < currentArraySize; ++i)
+		for (unsigned int i = 0; i < currentArraySize; ++i)
 			mp_Data[i] = m.mp_Data[i];
 	}
 }
@@ -158,7 +158,7 @@ inline bool Map<K, V>::Insert(const K &key, const V &value)
 	{
 		// must copy via loop instead of memmove for not TriviallyCopyable data
 		// slower but must be used to prevent leaks
-		for (int i = currentArraySize; i > result.second; --i)
+		for (unsigned int i = currentArraySize; i > result.second; --i)
 			mp_Data[i] = mp_Data[i - 1];
 	}
 
@@ -184,7 +184,7 @@ inline bool Map<K, V>::Erase(const K & key)
 	{
 		// must copy via loop instead of memmove for not TriviallyCopyable data
 		// slower but must be used to prevent leaks
-		for (int i = result.second; i < currentArraySize; ++i)
+		for (unsigned int i = result.second; i < currentArraySize; ++i)
 			mp_Data[i] = mp_Data[i + 1];
 	}
 
@@ -232,7 +232,7 @@ inline bool Map<K, V>::ForceSetSize(unsigned int newSize)
 	{
 		// must copy via loop instead of memcpy for not TriviallyCopyable data
 		// slower but must be used to prevent leaks
-		for (int i = 0; i < arraySize; ++i)
+		for (unsigned int i = 0; i < arraySize; ++i)
 			newData[i] = mp_Data[i];
 	}
 
