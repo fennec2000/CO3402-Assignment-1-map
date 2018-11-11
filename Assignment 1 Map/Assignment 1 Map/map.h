@@ -12,20 +12,24 @@ private:
 		V value;
 	};
 
+	// private variables
 	unsigned int arraySize = 10;		// current array size
 	unsigned int currentArraySize = 0;	// number of values stored in the array
-	SData* mp_Data;
+	SData* mp_Data;						// pointer to struct array to store data
+	bool m_is_trivially_copyable;		// stores bool wether is data trivially copyable for performace boost
 
-	pair<bool, unsigned int> FindInArray(const K& key, unsigned int start, unsigned int end);
+	// private functions
+	pair<bool, unsigned int> FindInArray(const K& key, unsigned int start, unsigned int end);	// binary search find value first = found, second = position
 
 public:
 
+	// iterator class
 	class Iterator
 	{
 	private:
 		SData* data;
 	public:
-		Iterator(SData* data) : data(data) {}
+		Iterator(SData* data) : data(data) {}	// constructor
 		Iterator operator++()		// prefix ++
 		{
 			Iterator x = *this;
@@ -38,22 +42,41 @@ public:
 			return *this;
 		}
 		
+		// operator overloads
 		auto operator*() { return make_pair(data->key, data->value); }
 		auto operator->() { return &make_pair(data->key, data->value); }
 		bool operator==(const Iterator& rhs) { return data == rhs.data; }
 		bool operator!=(const Iterator& rhs) { return data != rhs.data; }
 	};
 
-	Map();															// constructor
-	~Map();															// deconstructor
-	bool Add(const K &key, const V &value);							// adds a new key pair value
-	unsigned int DataSize() { return currentArraySize; }			// returns the number of data inserted into the array
-	unsigned int Size() { return arraySize; }						// returns the size of the pre allocated array
-	bool SetSize(unsigned int newSize);								// set size of the array
-	bool ForceSetSize(unsigned int newSize);						// unsafe does not check for data loss
-	V* Get(const K &key);											// Gets the Value from the key
+	Map();								// constructor
+	Map(const Map& m);					// copy constructor
+	virtual ~Map();						// deconstructor
+	Map& operator=(const Map& m)		// = operator overloading
+	{
+		swap(m);
+		return *this;
+	}
+
+	// Iterators
 	Iterator Begin() { return Iterator(mp_Data); }					// Iterator start
 	Iterator End() { return Iterator(mp_Data + currentArraySize); }	// iterator end
+
+	// Capacity
+	unsigned int Size() { return currentArraySize; }	// returns the number of data inserted into the array
+	unsigned int MaxSize() { return arraySize; }		// returns the size of the pre allocated array
+	bool Empty() { return !currentArraySize; }		// returne if the array has no data in it
+	bool SetSize(unsigned int newSize);					// set size of the array
+	bool ForceSetSize(unsigned int newSize);			// unsafe does not check for data loss
+
+	// Modifiers
+	bool Insert(const K &key, const V &value);	// adds a new key pair value
+	bool Erase(const K &key);					// removes a key value pair
+	bool Clear();								// removes all data from map and sets array size to default
+	
+	// Operations
+	V* Find(const K &key);	// Gets the Value from the key
+
 };
 
 template<typename K, typename V>
@@ -81,6 +104,28 @@ template <typename K, typename V>
 inline Map<K, V>::Map()
 {
 	mp_Data = new SData[arraySize];
+	m_is_trivially_copyable = false; // (is_trivially_copyable<K>::value && is_trivially_copyable<V>::value) ? true : false;
+}
+
+template<typename K, typename V>
+inline Map<K, V>::Map(const Map & m)
+{
+	// set array size
+	arraySize = m.arraySize;
+	mp_Data = new SData[arraySize];
+
+	// check and copy
+	currentArraySize = m.currentArraySize;
+	m_is_trivially_copyable = m.m_is_trivially_copyable;
+	if (m_is_trivially_copyable)
+		memcpy(mp_Data, m.mp_Data, sizeof(SData) * currentArraySize);
+	else
+	{
+		// must copy via loop instead of memcpy for not TriviallyCopyable data
+		// slower but must be used to prevent leaks
+		for (int i = 0; i < currentArraySize; ++i)
+			mp_Data[i] = m.mp_Data[i];
+	}
 }
 
 template<typename K, typename V>
@@ -90,7 +135,7 @@ inline Map<K, V>::~Map()
 }
 
 template<typename K, typename V>
-inline bool Map<K, V>::Add(const K &key, const V &value)
+inline bool Map<K, V>::Insert(const K &key, const V &value)
 {
 	// check if key exists
  	auto result = FindInArray(key, 0, currentArraySize-1);
@@ -107,12 +152,60 @@ inline bool Map<K, V>::Add(const K &key, const V &value)
 	}
 
 	// move data over 1
-	memmove(&mp_Data[result.second + 1], &mp_Data[result.second], sizeof(SData) * (currentArraySize - result.second));
+	if (m_is_trivially_copyable)
+		memmove(&mp_Data[result.second + 1], &mp_Data[result.second], sizeof(SData) * (currentArraySize - result.second));
+	else
+	{
+		// must copy via loop instead of memmove for not TriviallyCopyable data
+		// slower but must be used to prevent leaks
+		for (int i = currentArraySize; i > result.second; --i)
+			mp_Data[i] = mp_Data[i - 1];
+	}
 
 	// insert
 	mp_Data[result.second].key = key;
 	mp_Data[result.second].value = value;
 	++currentArraySize;
+	return true;
+}
+
+template<typename K, typename V>
+inline bool Map<K, V>::Erase(const K & key)
+{
+	// check if key exists
+	auto result = FindInArray(key, 0, currentArraySize - 1);
+	if (!result.first)
+		return false;
+
+	// move data over 1
+	if (m_is_trivially_copyable)
+		memmove(&mp_Data[result.second], &mp_Data[result.second + 1], sizeof(SData) * (currentArraySize - result.second));
+	else
+	{
+		// must copy via loop instead of memmove for not TriviallyCopyable data
+		// slower but must be used to prevent leaks
+		for (int i = result.second; i < currentArraySize; ++i)
+			mp_Data[i] = mp_Data[i + 1];
+	}
+
+	// reduce the array size
+	--currentArraySize;
+
+	// duplicate data at the end of array but due to array size it is not checked
+	// this means it does not need to be deleted
+	return true;
+}
+
+template<typename K, typename V>
+inline bool Map<K, V>::Clear()
+{
+	// delete
+	delete[] mp_Data;
+	// reset vaiables
+	currentArraySize = 0;
+	arraySize = 10;
+	// make new array
+	mp_Data = new SData[arraySize];
 	return true;
 }
 
@@ -132,7 +225,16 @@ inline bool Map<K, V>::ForceSetSize(unsigned int newSize)
 	SData* newData = new SData[newSize];
 
 	// copy data to new array
-	memcpy(newData, mp_Data, sizeof(SData) * arraySize);
+
+	if (m_is_trivially_copyable)
+		memcpy(newData, mp_Data, sizeof(SData) * arraySize);
+	else
+	{
+		// must copy via loop instead of memcpy for not TriviallyCopyable data
+		// slower but must be used to prevent leaks
+		for (int i = 0; i < arraySize; ++i)
+			newData[i] = mp_Data[i];
+	}
 
 	// delete old arrays
 	delete[] mp_Data;
@@ -145,7 +247,7 @@ inline bool Map<K, V>::ForceSetSize(unsigned int newSize)
 }
 
 template<typename K, typename V>
-inline V* Map<K, V>::Get(const K &key)
+inline V* Map<K, V>::Find(const K &key)
 {
 	auto result = FindInArray(key, 0, currentArraySize-1);
 	if (result.first)
