@@ -41,6 +41,17 @@ public:
 			++data;
 			return *this;
 		}
+		Iterator operator--()		// prefix --
+		{
+			Iterator x = *this;
+			--data;
+			return x;
+		}
+		Iterator operator--(int)	// postfix --
+		{
+			--data;
+			return *this;
+		}
 		
 		// operator overloads
 		auto operator*() { return make_pair(data->key, data->value); }
@@ -87,7 +98,7 @@ inline pair<bool, unsigned int> Map<K, V>::FindInArray(const K& key, unsigned in
 	{
 		// check mid
 		mid = start + (end - start) / 2;
-		if (mp_Data[mid].key == key)
+		if (!(mp_Data[mid].key < key || key < mp_Data[mid].key))
 			return pair<bool, unsigned int>(true, mid);
 
 		// recursion
@@ -147,8 +158,8 @@ inline bool Map<K, V>::Insert(const K &key, const V &value)
 	{
 		// resize
 		ForceSetSize(2 * arraySize);
-		// find position again
-		result = FindInArray(key, 0, currentArraySize-1);
+		// may need to find position again
+		//result = FindInArray(key, 0, currentArraySize-1);
 	}
 
 	// move data over 1
