@@ -159,7 +159,6 @@ inline bool Map<K, V>::Insert(const K &key, const V &value)
 		// resize
 		ForceSetSize(2 * arraySize);
 		// may need to find position again
-		//result = FindInArray(key, 0, currentArraySize-1);
 	}
 
 	// move data over 1
