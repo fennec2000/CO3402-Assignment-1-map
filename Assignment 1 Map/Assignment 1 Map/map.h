@@ -6,7 +6,7 @@ template <typename K, typename V>
 class Map
 {
 private:
-	struct SData
+	struct SData // struct to hold each key value pair
 	{
 		K key;
 		V value;
@@ -114,6 +114,7 @@ inline pair<bool, unsigned int> Map<K, V>::FindInArray(const K& key, unsigned in
 template <typename K, typename V>
 inline Map<K, V>::Map()
 {
+	// setup
 	mp_Data = new SData[arraySize];
 	m_is_trivially_copyable = (is_trivially_copyable<K>::value && is_trivially_copyable<V>::value) ? true : false;
 }
@@ -235,7 +236,6 @@ inline bool Map<K, V>::ForceSetSize(unsigned int newSize)
 	SData* newData = new SData[newSize];
 
 	// copy data to new array
-
 	if (m_is_trivially_copyable)
 		memcpy(newData, mp_Data, sizeof(SData) * arraySize);
 	else
